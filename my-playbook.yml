@@ -1,0 +1,14 @@
+---
+- name: Configure nginx webserver
+  hosts: webserver
+  become: true
+  tasks:
+    - name: uninstall nginx
+      apt:
+        name: nginx
+        state: absent
+    - name: stop nginx
+      service:
+        name: nginx
+        state: stopped
+      become: true

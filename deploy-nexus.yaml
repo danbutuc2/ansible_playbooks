@@ -1,0 +1,104 @@
+---
+- name: install java and net-tools
+  hosts: webserver
+  become: true
+  tasks:
+    - name: update apt and cache
+      apt:
+        update_cache: yes
+        force_apt_get: yes
+        cache_valid_time: 3600
+    - name: install java 8
+      apt:
+        name: openjdk-8-jre
+        state: present
+    - name: install net-tools
+      apt:
+        name: net-tools
+        state: present
+
+- name: download and unpack nexus installer
+  hosts: webserver
+  become: true
+  tasks:
+    - name: ensure nexus folder exists
+      stat:
+        path: /opt/nexus
+      register: stat_result
+    - name: download nexus
+      get_url:
+        url: https://download.sonatype.com/nexus/3/nexus-unix-x86-64-3.79.0-09.tar.gz
+        dest: /opt/nexus.tar.gz
+      register: nexus_download
+    - name: unpack nexus
+      unarchive:
+        src: "{{nexus_download.dest }}"
+        dest: /opt/
+        remote_src: yes
+      when: not stat_result.stat.exists
+    - name: find nexus folder
+      find:
+        paths: /opt/
+        patterns: "nexus-*"
+        file_type: directory
+      register: find_result
+    - name: rename nexus folder
+      shell: mv {{find_result.files[0].path}} /opt/nexus
+      when: not stat_result.stat.exists
+
+- name: create nexus user to own nexus folders
+  hosts: webserver
+  become: true
+  tasks:
+    - name: ensure group nexus exists
+      group:
+        name: nexus
+        state: present
+    - name: create user nexus
+      user:
+        name: nexus
+        group: nexus
+        shell: /bin/bash
+        home: /opt/nexus
+    - name: Make nexus user owner of sonatype folder
+      file:
+        path: /opt/sonatype-work
+        state: directory
+        owner: nexus
+        group: nexus
+        recurse: yes
+    - name: Make nexus user owner of nexus folder
+      file:
+        path: /opt/nexus
+        state: directory
+        owner: nexus
+        group: nexus
+        recurse: yes
+
+- name: Start nexus with nexus user
+  hosts: webserver
+  become: true
+  tasks:
+    - name: create nexus.rc
+      copy:
+        dest: /opt/nexus/bin/nexus.rc
+        content: |
+          run_as_user="nexus"
+    - name: start nexus
+      shell: /opt/nexus/bin/nexus start
+      async: 10
+      poll: 0
+    - name: verify nexus is running
+      shell: ps aux | grep nexus
+      register: result
+    - debug:
+        msg: "{{ result.stdout_lines }}"
+    - name: ensure with netstat
+      shell: netstat -tuln
+      register: result
+    - debug:
+        msg: "{{ result.stdout_lines }}"
+    - name: stop nexus
+      shell: /opt/nexus/bin/nexus stop
+      async: 10
+      poll: 0

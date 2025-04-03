@@ -1,0 +1,6 @@
+# run a playbook command, including the hosts file and the playbook name 
+ansible-playbook -i hosts my-playbook.yml
+
+#ping the servers
+ansible webserver -i hosts ping     
+

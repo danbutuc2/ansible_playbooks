@@ -1,0 +1,51 @@
+---
+- name: install node and npm
+  hosts: webserver
+  become: true
+  vars_files:
+    - project-vars
+  tasks:
+    - name: Update apt repo and cache
+      apt: 
+        update_cache: yes
+        force_apt_get: yes
+        cache_valid_time: 3600
+    - name: Install nodejs and npm
+      apt:
+        pkg:
+          - nodejs
+          - npm
+- name: Deploy nodejs application
+  hosts: webserver
+  become: true
+  vars_files:
+    - project-vars
+  tasks:
+    - name: Copy nodejs folder to webserver
+      copy:
+        src: "{{location}}/nodejs-app-{{version}}.tgz"
+        dest: /home/ubuntu/nodejs-app-"{{version}}".tgz
+    - name: Extract nodejs folder
+      unarchive:
+        src: /home/ubuntu/nodejs-app-"{{version}}".tgz
+        dest: /home/ubuntu/
+        remote_src: yes
+    - name: remove the tar file
+      file:
+        path: /home/ubuntu/nodejs-app-"{{version}}".tgz
+        state: absent
+    - name: Install dependencies
+      npm:
+        path: /home/ubuntu/package
+        state: present
+    - name: start application
+      command:
+        chdir: /home/ubuntu/package/app
+        cmd: node server
+      async: 1000
+      poll: 0
+    - name: ensure app is running
+      shell: ps aux | grep node
+      register: result
+    - debug:
+        msg: "{{ result.stdout_lines }}"

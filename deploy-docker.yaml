@@ -1,0 +1,49 @@
+---
+- name: Install docker
+  hosts: webserver
+  become: true
+  tasks:
+    - name: install docker
+      yum:
+        name: docker
+        update_cache: yes
+        state: present
+- name: install docker-compose
+  hosts: webserver
+  become: true
+  tasks:
+    - name: download and install docker docker-compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/1.29.2/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: +x
+- name: start docker
+  hosts: webserver
+  become: true
+  tasks:
+    - name: start docker daemon
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+    - name: reconnect to server session
+      meta: reset_connection
+
+- name: add ec2-user to docker group
+  hosts: webserver
+  become: true
+  tasks:
+    - name: add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes 
+- name: Test docker pull 
+  hosts: webserver
+  become: true
+  tasks:
+    - name: pull redis 
+      docker_image:
+        name: redis
+        tag: latest
+        source: pull
